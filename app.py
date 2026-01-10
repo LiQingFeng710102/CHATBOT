@@ -500,140 +500,78 @@ def reset_chat():
 # =========================
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
-    render_header()
-    render_sidebar_content()
-# =========================
-# API KEY INPUT (USER)
-# =========================
-st.sidebar.divider()
-st.sidebar.subheader("🔑 Cấu hình API")
+    st.title("🎓 CHATBOT HCMUE")
 
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+    # ---- API KEY INPUT ----
+    st.sidebar.subheader("🔑 Google API Key")
 
-st.session_state.api_key = st.sidebar.text_input(
-    "Nhập Google API Key",
-    type="password",
-    value=st.session_state.api_key,
-    help="Lấy tại https://aistudio.google.com/"
-)
+    if "api_key" not in st.session_state:
+        st.session_state.api_key = ""
 
-api_key = st.session_state.api_key
-
-if not api_key:
-    st.warning("⚠️ Vui lòng nhập Google API Key để sử dụng chatbot.")
-    st.stop()
-
-    st.session_state.setdefault(
-        "messages",
-        [
-            {
-                "role": "assistant",
-                "content": "Tôi có thể hỗ trợ gì cho các bạn?",
-            }
-        ],
+    st.session_state.api_key = st.sidebar.text_input(
+        "Nhập Google API Key",
+        type="password",
+        value=st.session_state.api_key,
     )
-    for m in st.session_state.messages:
-        display_chat_message(m["role"], m["content"])
 
-    # ... các bước xử lý vector store ...
+    api_key = st.session_state.api_key.strip()
 
-# 1. Khởi tạo Vector Store và Chain (Làm trước khi nhận input)
-    vs = None
-    chain = None
+    # ---- INIT CHAT ----
+    if "messages" not in st.session_state:
+        reset_chat()
 
-    if api_key:
-        vs = load_kb_vectorstore(api_key)
-        chain = load_qa_chain_cached(api_key)
-    else:
-        st.info("👈 Vui lòng nhập Google API Key ở sidebar để bắt đầu.")
+    for msg in st.session_state.messages:
+        display_chat_message(msg["role"], msg["content"])
 
+    # ---- INPUT ----
+    question = st.chat_input("Nhập câu hỏi của bạn...")
 
-    # 2. Nhận input từ User
-    prompt = st.chat_input("Nhập câu hỏi của bạn tại đây...")
+    if not question:
+        return
 
-    # Kiểm tra xem có dữ liệu từ Sidebar gửi qua không
-    if "sidebar_selection" in st.session_state and st.session_state.sidebar_selection:
-        question = st.session_state.sidebar_selection
-        # Xóa ngay sau khi lấy để tránh lặp lại khi rerun lần sau
-        del st.session_state.sidebar_selection
-    else:
-        question = prompt
-    # 3. NẾU CÓ CÂU HỎI (TỪ BẤT KỲ NGUỒN NÀO) THÌ XỬ LÝ
-    if question:
-        if not api_key:
-            st.warning("⚠️ Bạn cần nhập Google API Key trước khi đặt câu hỏi.")
-        else:
-            # Kiểm tra giới hạn yêu cầu (Spam)
-            ok, msg = allow_request()
-            if not ok:
-                st.warning(msg)
-            else:
-                # A. Thêm câu hỏi của User vào lịch sử và hiển thị ngay
-                st.session_state.messages.append(
-                    {"role": "user", "content": question}
-                )
-                display_chat_message("user", question)
+    if not api_key:
+        st.warning("⚠️ Vui lòng nhập Google API Key trước khi hỏi.")
+        return
 
-                # B. Tạo khung trống (placeholder) cho Bot
-                placeholder = st.empty()
-                with placeholder:
-                    display_chat_message("assistant", "", thinking=True)
+    ok, msg = allow_request()
+    if not ok:
+        st.warning(msg)
+        return
 
-                # C. Logic xử lý AI (RAG)
-                try:
-                    # Tìm kiếm nội dung liên quan
-                    docs = vs.similarity_search(question, k=TOP_K)
+    # ---- LOAD AI ----
+    vs = load_kb_vectorstore(api_key)
+    chain = load_qa_chain_cached(api_key)
 
-                    # Chạy Chain để lấy kết quả
-                    out = chain(
-                        {
-                            "input_documents": docs,
-                            "question": question,
-                        },
-                        return_only_outputs=True,
-                    )
-                    answer = out.get(
-                        "output_text",
-                        "Xin lỗi, tôi không tìm thấy thông tin phù hợp.",
-                    )
+    # ---- USER MESSAGE ----
+    st.session_state.messages.append(
+        {"role": "user", "content": question}
+    )
+    display_chat_message("user", question)
 
-                    # Làm sạch mã (nếu có)
-                    sanitized = re.sub(
-                        r"```.*?```",
-                        "[mã đã ẩn]",
-                        answer,
-                        flags=re.S,
-                    )
+    placeholder = st.empty()
+    with placeholder:
+        display_chat_message("assistant", "", thinking=True)
 
-                    # D. HIỂN THỊ THEO TỪ (WORD-BY-WORD)
-                    words = sanitized.split(" ")
-                    full_display = ""
+    try:
+        docs = vs.similarity_search(question, k=TOP_K)
+        out = chain(
+            {"input_documents": docs, "question": question},
+            return_only_outputs=True,
+        )
 
-                    for i in range(len(words)):
-                        full_display += words[i] + " "
-                        if i % 3 == 0 or i == len(words) - 1:
-                            with placeholder:
-                                display_chat_message(
-                                    "assistant",
-                                    full_display.strip(),
-                                )
-                            time.sleep(0.01)
+        answer = out.get("output_text", "Không tìm thấy thông tin.")
+        answer = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
 
-                    # E. Lưu câu trả lời vào lịch sử
-                    st.session_state.messages.append(
-                        {
-                            "role": "assistant",
-                            "content": sanitized,
-                        }
-                    )
+        placeholder.empty()
+        display_chat_message("assistant", answer)
 
-                except Exception as e:
-                    placeholder.empty()
-                    with placeholder:
-                        display_chat_message(
-                            "assistant",
-                            f"Đã xảy ra lỗi: {str(e)}",
-                        )
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
+        )
+
+    except Exception as e:
+        placeholder.empty()
+        display_chat_message("assistant", f"Lỗi: {e}")
+
 if __name__ == "__main__":
     main()
