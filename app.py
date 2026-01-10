@@ -502,14 +502,23 @@ def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     render_header()
     render_sidebar_content()
-    load_dotenv()
-    api_key = os.getenv("GOOGLE_API_KEY") or st.secrets.get(
-        "GOOGLE_API_KEY"
-    )
+# =========================
+# API KEY INPUT (USER)
+# =========================
+st.sidebar.divider()
+st.sidebar.subheader("🔑 Cấu hình API")
 
-    if not api_key:
-        st.error("Chưa cấu hình GOOGLE_API_KEY.")
-        st.stop()
+user_api_key = st.sidebar.text_input(
+    "Nhập Google API Key",
+    type="password",
+    help="Lấy tại https://aistudio.google.com/"
+)
+
+api_key = user_api_key
+
+if not api_key:
+    st.warning("⚠️ Vui lòng nhập Google API Key để sử dụng chatbot.")
+    st.stop()
 
     st.session_state.setdefault(
         "messages",
