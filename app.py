@@ -508,13 +508,17 @@ def main():
 st.sidebar.divider()
 st.sidebar.subheader("🔑 Cấu hình API")
 
-user_api_key = st.sidebar.text_input(
+if "api_key" not in st.session_state:
+    st.session_state.api_key = ""
+
+st.session_state.api_key = st.sidebar.text_input(
     "Nhập Google API Key",
     type="password",
+    value=st.session_state.api_key,
     help="Lấy tại https://aistudio.google.com/"
 )
 
-api_key = user_api_key
+api_key = st.session_state.api_key
 
 if not api_key:
     st.warning("⚠️ Vui lòng nhập Google API Key để sử dụng chatbot.")
@@ -535,8 +539,15 @@ if not api_key:
     # ... các bước xử lý vector store ...
 
 # 1. Khởi tạo Vector Store và Chain (Làm trước khi nhận input)
-    vs = load_kb_vectorstore(api_key)
-    chain = load_qa_chain_cached(api_key)
+    vs = None
+    chain = None
+
+    if api_key:
+        vs = load_kb_vectorstore(api_key)
+        chain = load_qa_chain_cached(api_key)
+    else:
+        st.info("👈 Vui lòng nhập Google API Key ở sidebar để bắt đầu.")
+
 
     # 2. Nhận input từ User
     prompt = st.chat_input("Nhập câu hỏi của bạn tại đây...")
@@ -550,50 +561,79 @@ if not api_key:
         question = prompt
     # 3. NẾU CÓ CÂU HỎI (TỪ BẤT KỲ NGUỒN NÀO) THÌ XỬ LÝ
     if question:
-        # Kiểm tra giới hạn yêu cầu (Spam)
-        ok, msg = allow_request()
-        if not ok:
-            st.warning(msg)
+        if not api_key:
+            st.warning("⚠️ Bạn cần nhập Google API Key trước khi đặt câu hỏi.")
         else:
-            # A. Thêm câu hỏi của User vào lịch sử và hiển thị ngay
-            st.session_state.messages.append({"role": "user", "content": question})
-            display_chat_message("user", question)
+            # Kiểm tra giới hạn yêu cầu (Spam)
+            ok, msg = allow_request()
+            if not ok:
+                st.warning(msg)
+            else:
+                # A. Thêm câu hỏi của User vào lịch sử và hiển thị ngay
+                st.session_state.messages.append(
+                    {"role": "user", "content": question}
+                )
+                display_chat_message("user", question)
 
-            # B. Tạo khung trống (placeholder) cho Bot
-            placeholder = st.empty()
-            with placeholder:
-                display_chat_message("assistant", "", thinking=True)
-
-            # C. Logic xử lý AI (RAG)
-            try:
-                # Tìm kiếm nội dung liên quan
-                docs = vs.similarity_search(question, k=TOP_K)
-                
-                # Chạy Chain để lấy kết quả (Bạn có thể dùng stream() nếu chain hỗ trợ)
-                out = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
-                answer = out.get("output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp.")
-                
-                # Làm sạch mã (nếu có)
-                sanitized = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
-
-                # D. HIỂN THỊ THEO TỪ (WORD-BY-WORD) - CỰC KỲ QUAN TRỌNG ĐỂ TĂNG TỐC
-                words = sanitized.split(" ")
-                full_display = ""
-                
-                for i in range(len(words)):
-                    full_display += words[i] + " "
-                    # Cứ sau mỗi 3-5 từ thì update UI một lần để giảm tải cho trình duyệt
-                    if i % 3 == 0 or i == len(words) - 1:
-                        with placeholder:
-                            display_chat_message("assistant", full_display.strip())
-                        time.sleep(0.01) # Giảm độ trễ xuống mức tối thiểu
-
-                # E. Lưu câu trả lời vào lịch sử
-                st.session_state.messages.append({"role": "assistant", "content": sanitized})
-
-            except Exception as e:
-                placeholder.empty()
+                # B. Tạo khung trống (placeholder) cho Bot
+                placeholder = st.empty()
                 with placeholder:
-                    display_chat_message("assistant", f"Đã xảy ra lỗi: {str(e)}")
+                    display_chat_message("assistant", "", thinking=True)
+
+                # C. Logic xử lý AI (RAG)
+                try:
+                    # Tìm kiếm nội dung liên quan
+                    docs = vs.similarity_search(question, k=TOP_K)
+
+                    # Chạy Chain để lấy kết quả
+                    out = chain(
+                        {
+                            "input_documents": docs,
+                            "question": question,
+                        },
+                        return_only_outputs=True,
+                    )
+                    answer = out.get(
+                        "output_text",
+                        "Xin lỗi, tôi không tìm thấy thông tin phù hợp.",
+                    )
+
+                    # Làm sạch mã (nếu có)
+                    sanitized = re.sub(
+                        r"```.*?```",
+                        "[mã đã ẩn]",
+                        answer,
+                        flags=re.S,
+                    )
+
+                    # D. HIỂN THỊ THEO TỪ (WORD-BY-WORD)
+                    words = sanitized.split(" ")
+                    full_display = ""
+
+                    for i in range(len(words)):
+                        full_display += words[i] + " "
+                        if i % 3 == 0 or i == len(words) - 1:
+                            with placeholder:
+                                display_chat_message(
+                                    "assistant",
+                                    full_display.strip(),
+                                )
+                            time.sleep(0.01)
+
+                    # E. Lưu câu trả lời vào lịch sử
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": sanitized,
+                        }
+                    )
+
+                except Exception as e:
+                    placeholder.empty()
+                    with placeholder:
+                        display_chat_message(
+                            "assistant",
+                            f"Đã xảy ra lỗi: {str(e)}",
+                        )
 if __name__ == "__main__":
     main()
