@@ -32,12 +32,12 @@ MAX_OUTPUT_TOKENS = 2048
 TEMPERATURE = 0.2
 
 # =========================
-# HEADER + LOGO
+# HEADER + LOGO (đổi với sidebar logo)
 # =========================
 def render_header():
-    logo_path = APP_DIR / "Logo HCMUE.png"  # logo chính
+    logo_path = APP_DIR / "Logo HCMUE - Gia tri cot loi 2.png"  # đổi logo header
     if logo_path.exists():
-        st.image(str(logo_path), width=120)  # hiển thị logo trước header
+        st.image(str(logo_path), width=120)
     st.markdown(
         """
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -81,6 +81,91 @@ def render_header():
         <div class="hcmue-header">
             <h1>CHATBOT HCMUE</h1>
             <p>Tư vấn quy chế đào tạo cho sinh viên Trường Đại học Sư phạm TP.HCM</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# =========================
+# HELPER CHAT
+# =========================
+def display_chat_message(role, content, thinking=False):
+    is_bot = role == "assistant"
+    justify = "justify-start" if is_bot else "justify-end"
+    items = "items-start" if is_bot else "items-end"
+    row_dir = "" if is_bot else "flex-row-reverse"
+    avatar_class = "bot-avatar" if is_bot else "user-avatar"
+    icon = '<i class="fas fa-robot"></i>' if is_bot else '<i class="fas fa-user-graduate"></i>'
+    label = "Trợ lý HCMUE" if is_bot else "Sinh viên"
+    bubble_class = "bot-content" if is_bot else "user-content"
+    inner_content = '<div style="font-size:18px; color:#94a3b8; font-style:italic;">...</div>' if thinking else content
+    html = f"""
+    <div class="chat-msg-container {justify}">
+        <div class="msg-bubble {items}">
+            <div class="msg-info {row_dir}">
+                <div class="avatar {avatar_class}">{icon}</div>
+                <span class="role-label">{label}</span>
+            </div>
+            <div class="content-bubble {bubble_class}">
+                {inner_content}
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+# =========================
+# SIDEBAR
+# =========================
+def render_sidebar_content():
+    logo_path = APP_DIR / "Logo HCMUE.png"  # đổi logo sidebar
+    if logo_path.exists():
+        st.sidebar.image(str(logo_path), width=60)
+    st.sidebar.markdown(
+        """
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
+            <div style="font-size:20px; font-weight:600; color:#124874;">CHATBOT HCMUE</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --- API key ---
+    st.sidebar.markdown('<p class="sidebar-section-title">Nhập API Key của bạn</p>', unsafe_allow_html=True)
+    st.session_state.setdefault("api_key", "")
+    api_key_input = st.sidebar.text_input("GOOGLE_API_KEY", type="password", value=st.session_state.api_key)
+    if api_key_input:
+        st.session_state.api_key = api_key_input.strip()
+    if not st.session_state.api_key:
+        st.sidebar.warning("Vui lòng nhập API key để sử dụng chatbot.")
+
+    # --- Quick questions ---
+    st.sidebar.markdown('<p class="sidebar-section-title">Hỏi nhanh</p>', unsafe_allow_html=True)
+    quick_questions = [
+        ("Điều kiện để xét học bổng", "Điều kiện để xét học bổng ?"),
+        ("Cách xin giấy tạm hoãn nghĩa vụ quân sự", "Cách xin giấy tạm hoãn nghĩa vụ quân sự ?"),
+        ("Điều kiện để xét tốt nghiệp", "Điều kiện để xét tốt nghiệp ?"),
+        ("Điều kiện để bao lưu ?", "Điều kiện để bao lưu ?"),
+    ]
+    for label, query in quick_questions:
+        if st.sidebar.button(label, key=f"btn_{label}", use_container_width=True):
+            st.session_state.sidebar_selection = query
+            st.rerun()
+
+    st.sidebar.divider()
+    if st.sidebar.button("Làm mới cuộc hội thoại", use_container_width=True):
+        st.session_state.messages = [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
+        st.rerun()
+
+    st.sidebar.divider()
+    st.sidebar.markdown(
+        """
+        <div style="margin-top:20px;padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #f1f5f9;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+                <div style="width:8px;height:8px;background:#10b981;border-radius:50%;"></div>
+                <span style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;">Hệ thống Online</span>
+            </div>
+            <p style="font-size:13px;color:#94a3b8;margin:0;">Dữ liệu cập nhật dựa trên sổ tay sinh viên khóa 50.</p>
         </div>
         """,
         unsafe_allow_html=True
