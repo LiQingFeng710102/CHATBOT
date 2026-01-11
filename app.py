@@ -7,10 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import (
-    GoogleGenerativeAIEmbeddings,
-    ChatGoogleGenerativeAI,
-)
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.chains.question_answering import load_qa_chain
@@ -19,8 +16,6 @@ from langchain_classic.chains.question_answering import load_qa_chain
 # CẤU HÌNH
 # =========================
 APP_TITLE = "Chat bot hỗ trợ cho sinh viên HCMUE"
-APP_SUBTITLE = "Tư vấn Quy chế cho Sinh viên hệ Chính quy Trường Đại học Sư phạm TP.HCM"
-
 APP_DIR = Path(__file__).resolve().parent
 KB_JSON_PATH = APP_DIR / "chunks.json"
 
@@ -33,30 +28,66 @@ MAX_REQUESTS_PER_DAY = 30
 CHUNK_SIZE = 1600
 CHUNK_OVERLAP = 200
 TOP_K = 4
-
-MAX_OUTPUT_TOKENS = 2048  # tăng giới hạn trả lời
+MAX_OUTPUT_TOKENS = 2048
 TEMPERATURE = 0.2
 
 # =========================
-# HEADER
+# HEADER + LOGO
 # =========================
 def render_header():
+    logo_path = APP_DIR / "Logo HCMUE.png"  # logo chính
+    logo_html = f'<img src="file://{logo_path}" width="120">' if logo_path.exists() else ""
     st.markdown(
-        """
+        f"""
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
-        /* CSS nguyên bản giữ nguyên */
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
+            .stApp {{ background-color: #f8f9fa; }}
+
+            /* Header */
+            .hcmue-header {{
+                background-color: #ffffff;
+                color: #124874;
+                padding: 2rem;
+                border-radius: 0 0 24px 24px;
+                text-align: center;
+                margin-bottom: 30px;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            }}
+            .hcmue-header h1 {{ color: #124874; font-size: 42px; margin:0; }}
+            .hcmue-header p {{ color: #124874; opacity:0.8; font-size:18px; margin:5px 0 0 0; }}
+            
+            /* Chat bubbles */
+            .chat-msg-container {{ display: flex; width: 100%; margin-bottom: 1.5rem; }}
+            .justify-start {{ justify-content: flex-start; }}
+            .justify-end {{ justify-content: flex-end; }}
+            .msg-bubble {{ max-width: 100%; display: flex; flex-direction: column; }}
+            .items-start {{ align-items: flex-start; }}
+            .items-end {{ align-items: flex-end; }}
+            .msg-info {{ display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }}
+            .flex-row-reverse {{ flex-direction: row-reverse; }}
+            .avatar {{ width: 35px; height: 35px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; }}
+            .bot-avatar {{ background-color:#124874; color:white; }}
+            .user-avatar {{ background-color:#e2e8f0; color:#475569; }}
+            .role-label {{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; }}
+            .content-bubble {{ width:100%; padding:12px 20px; border-radius:18px; font-size:15px; line-height:1.6; box-shadow:0 1px 3px rgba(0,0,0,0.1); }}
+            .bot-content {{ background-color:white; color:#1e293b; border-top-left-radius:2px; }}
+            .user-content {{ background-color:#124874; color:white; border-top-right-radius:2px; }}
+            footer {{ display:none !important; }}
+            .stButton>button {{ background-color:#0d3658 !important; color:#fff !important; border-radius:999px; padding:6px 12px; border:none !important; }}
         </style>
         <div class="hcmue-header">
-            <h1 style="margin:0; font-size: 42px;">CHATBOT HCMUE</h1>
-            <p style="margin:5px 0 0 0; opacity: 0.8; font-size: 18px;">Tư vấn quy chế đào tạo cho sinh viên Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
+            {logo_html}
+            <h1>CHATBOT HCMUE</h1>
+            <p>Tư vấn quy chế đào tạo cho sinh viên Trường Đại học Sư phạm TP.HCM</p>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 # =========================
-# HELPER HIỂN THỊ CHAT
+# HELPER CHAT
 # =========================
 def display_chat_message(role, content, thinking=False):
     is_bot = role == "assistant"
@@ -67,9 +98,7 @@ def display_chat_message(role, content, thinking=False):
     icon = '<i class="fas fa-robot"></i>' if is_bot else '<i class="fas fa-user-graduate"></i>'
     label = "Trợ lý HCMUE" if is_bot else "Sinh viên"
     bubble_class = "bot-content" if is_bot else "user-content"
-
     inner_content = '<div style="font-size:18px; color:#94a3b8; font-style:italic;">...</div>' if thinking else content
-
     html = f"""
     <div class="chat-msg-container {justify}">
         <div class="msg-bubble {items}">
@@ -89,41 +118,34 @@ def display_chat_message(role, content, thinking=False):
 # SIDEBAR
 # =========================
 def render_sidebar_content():
+    logo_path = APP_DIR / "Logo HCMUE - Gia tri cot loi 2.png"
+    logo_html = f'<img src="file://{logo_path}" width="60">' if logo_path.exists() else ""
     st.sidebar.markdown(
-        """
-        <div class="sidebar-header">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: #124874; padding: 8px; border-radius: 10px; color: white;">
-                    <i class="fas fa-university" style="font-size: 20px;"></i>
-                </div>
-                <div>
-                    <h2 style="margin:0; font-size: 28px; color: #124874;">CHATBOT HCMUE</h2>
-                    <p style="margin:0; font-size: 13px; color: #64748b;">Trợ lý hỗ trợ sinh viên khóa 50</p>
-                </div>
-            </div>
+        f"""
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
+            {logo_html}
+            <div style="font-size:20px; font-weight:600; color:#124874;">CHATBOT HCMUE</div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # --- Nhập API key trong sidebar ---
+    # --- API key ---
     st.sidebar.markdown('<p class="sidebar-section-title">Nhập API Key của bạn</p>', unsafe_allow_html=True)
     st.session_state.setdefault("api_key", "")
-    api_key_input = st.sidebar.text_input(
-        "GOOGLE_API_KEY", type="password", value=st.session_state.api_key
-    )
+    api_key_input = st.sidebar.text_input("GOOGLE_API_KEY", type="password", value=st.session_state.api_key)
     if api_key_input:
         st.session_state.api_key = api_key_input.strip()
     if not st.session_state.api_key:
         st.sidebar.warning("Vui lòng nhập API key để sử dụng chatbot.")
 
     # --- Quick questions ---
-    st.sidebar.markdown('<p class="sidebar-section-title">Hỏi nhanh quy chế</p>', unsafe_allow_html=True)
+    st.sidebar.markdown('<p class="sidebar-section-title">Hỏi nhanh</p>', unsafe_allow_html=True)
     quick_questions = [
         ("Điều kiện để xét học bổng", "Điều kiện để xét học bổng ?"),
-        ("Cách xin giấy tạm hoãn nghĩa vụ quân sự", "Cách xin giấy tạm hoãn nghĩa vụ quân sự cho sinh viên ?"),
-        ("Điều kiện để xét tốt nghiệp", "Điều kiện để xét tốt nghiệp là gì?"),
-        ("Điều kiện để bao lưu ? ", " Điều kiện để bao lưu kết quả học tập ?"),
+        ("Cách xin giấy tạm hoãn nghĩa vụ quân sự", "Cách xin giấy tạm hoãn nghĩa vụ quân sự ?"),
+        ("Điều kiện để xét tốt nghiệp", "Điều kiện để xét tốt nghiệp ?"),
+        ("Điều kiện để bao lưu ?", "Điều kiện để bao lưu ?"),
     ]
     for label, query in quick_questions:
         if st.sidebar.button(label, key=f"btn_{label}", use_container_width=True):
@@ -138,12 +160,12 @@ def render_sidebar_content():
     st.sidebar.divider()
     st.sidebar.markdown(
         """
-        <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #f1f5f9;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
-                <span style="font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase;">Hệ thống Online</span>
+        <div style="margin-top:20px;padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #f1f5f9;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+                <div style="width:8px;height:8px;background:#10b981;border-radius:50%;"></div>
+                <span style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;">Hệ thống Online</span>
             </div>
-            <p style="font-size: 13px; color: #94a3b8; margin: 0;">Dữ liệu cập nhật dựa trên sổ tay sinh viên khóa 50.</p>
+            <p style="font-size:13px;color:#94a3b8;margin:0;">Dữ liệu cập nhật dựa trên sổ tay sinh viên khóa 50.</p>
         </div>
         """,
         unsafe_allow_html=True
@@ -158,22 +180,19 @@ def allow_request():
     st.session_state.setdefault("last_req", 0.0)
     st.session_state.setdefault("count_today", 0)
     st.session_state.setdefault("day", today)
-
     if st.session_state["day"] != today:
         st.session_state["day"] = today
         st.session_state["count_today"] = 0
-
     if now - st.session_state["last_req"] < MIN_SECONDS_BETWEEN_REQUESTS:
         return False, "Bạn gửi hơi nhanh, vui lòng chờ một chút nhé."
     if st.session_state["count_today"] >= MAX_REQUESTS_PER_DAY:
         return False, "Bạn đã hết lượt hỏi hôm nay."
-
     st.session_state["last_req"] = now
     st.session_state["count_today"] += 1
     return True, ""
 
 # =========================
-# LOAD KB
+# LOAD KB, VectorStore, QA Chain
 # =========================
 @st.cache_data
 def load_kb_texts():
@@ -181,10 +200,7 @@ def load_kb_texts():
         raise FileNotFoundError(f"Không tìm thấy file: {KB_JSON_PATH}")
     with open(KB_JSON_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-    texts = [item["content"] for item in data if "content" in item]
-    if not texts:
-        raise ValueError("File JSON không có nội dung hợp lệ.")
-    return texts
+    return [item["content"] for item in data if "content" in item]
 
 @st.cache_resource(show_spinner=True)
 def load_kb_vectorstore(api_key: str):
@@ -200,9 +216,9 @@ def load_kb_vectorstore(api_key: str):
 def load_qa_chain_cached(api_key: str):
     prompt_template = """
 Bạn là trợ lý hỗ trợ sinh viên.
-Trả lời đầy đủ, rõ ràng, đúng trọng tâm của câu hỏi.
-Luôn trích dẫn nguồn từ tài liệu trong NGỮ CẢNH.
-Nếu thông tin không có trong NGỮ CẢNH, hãy nói "Không tìm thấy thông tin phù hợp".
+Trả lời đầy đủ, rõ ràng, đúng trọng tâm.
+Luôn trích dẫn NGỮ CẢNH.
+Nếu không có thông tin trong NGỮ CẢNH, hãy nói "Không tìm thấy thông tin phù hợp".
 
 NGỮ CẢNH:
 {context}
@@ -210,46 +226,12 @@ NGỮ CẢNH:
 CÂU HỎI:
 {question}
 
-TRẢ LỜI (kèm nguồn):
+TRẢ LỜI:
 """.strip()
-
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=api_key,
-        temperature=TEMPERATURE,
-        max_output_tokens=MAX_OUTPUT_TOKENS
-    )
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=api_key,
+                                 temperature=TEMPERATURE, max_output_tokens=MAX_OUTPUT_TOKENS)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(llm=llm, chain_type="stuff", prompt=prompt)
-
-# =========================
-# QUICK ANSWER
-# =========================
-def quick_answer(option: str) -> str:
-    keyword_map = {
-        "Cách xét học bổng": ["học bổng"],
-        "Điều kiện xét học bổng": ["điều kiện", "học bổng"],
-        "Điều kiện để tốt nghiệp": ["tốt nghiệp"],
-        "Điều kiện xét học ngành thứ hai": ["ngành", "thứ hai"],
-    }
-    keywords = keyword_map.get(option, [])
-    if not keywords:
-        return "Chưa có thông tin."
-
-    texts = load_kb_texts()
-    for text in texts:
-        content = text.lower()
-        if all(k in content for k in keywords):
-            sentences = [s.strip() for s in text.split(".") if s.strip()]
-            bullets = ["- " + " ".join(s.split()[:18]) for s in sentences[:3]]
-            return "\n".join(bullets)
-    return "Không tìm thấy nội dung phù hợp trong quy chế."
-
-# =========================
-# RESET CHAT
-# =========================
-def reset_chat():
-    st.session_state.messages = [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
 
 # =========================
 # MAIN
@@ -261,32 +243,16 @@ def main():
 
     api_key = st.session_state.get("api_key", "")
     if not api_key:
-        st.stop()  # dừng nếu chưa nhập key, warning hiển thị trong sidebar
+        st.stop()
 
-    # Khởi tạo messages
-    st.session_state.setdefault(
-        "messages", [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
-    )
+    st.session_state.setdefault("messages", [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}])
     for m in st.session_state.messages:
         display_chat_message(m["role"], m["content"])
 
-    # Khởi tạo VectorStore
-    try:
-        vs = load_kb_vectorstore(api_key)
-    except Exception as e:
-        st.error(f"Lỗi khi khởi tạo VectorStore: {str(e)}")
-        st.stop()
+    vs = load_kb_vectorstore(api_key)
+    chain = load_qa_chain_cached(api_key)
 
-    # Khởi tạo QA Chain
-    try:
-        chain = load_qa_chain_cached(api_key)
-    except Exception as e:
-        st.error(f"Lỗi khi khởi tạo QA Chain: {str(e)}")
-        st.stop()
-
-    # Nhận input từ user
     prompt = st.chat_input("Nhập câu hỏi của bạn tại đây...")
-
     if "sidebar_selection" in st.session_state and st.session_state.sidebar_selection:
         question = st.session_state.sidebar_selection
         del st.session_state.sidebar_selection
@@ -311,7 +277,6 @@ def main():
                 answer = out.get("output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp.")
                 sanitized = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
 
-                # Hiển thị từng cụm từ
                 words = sanitized.split(" ")
                 full_display = ""
                 for i in range(len(words)):
@@ -327,7 +292,6 @@ def main():
                 placeholder.empty()
                 with placeholder:
                     display_chat_message("assistant", f"Đã xảy ra lỗi: {str(e)}")
-
 
 if __name__ == "__main__":
     main()
