@@ -252,6 +252,7 @@ def quick_answer(option: str) -> str:
 def reset_chat():
     st.session_state.messages = [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
 
+
 # =========================
 # MAIN
 # =========================
@@ -260,20 +261,30 @@ def main():
     render_header()
     render_sidebar_content()
 
-    # --- Nhập API key từ người dùng nếu chưa lưu ---
-    if "api_key" not in st.session_state:
-        st.session_state.api_key = st.text_input("Nhập GOOGLE_API_KEY của bạn:", type="password")
-        if not st.session_state.api_key:
-            st.info("Vui lòng nhập API key để tiếp tục.")
-            st.stop()  # dừng app tại đây nếu chưa nhập
+    # --- Khởi tạo session_state cho api_key nếu chưa có ---
+    st.session_state.setdefault("api_key", "")
 
-    # Luôn lấy api_key từ session_state
-    api_key = st.session_state.api_key.strip()
+    # --- Nhập API key từ người dùng ---
+    api_key_input = st.text_input(
+        "Nhập GOOGLE_API_KEY của bạn:", type="password", value=st.session_state.api_key
+    )
+
+    # Cập nhật session_state khi người dùng nhập
+    if api_key_input:
+        st.session_state.api_key = api_key_input.strip()
+
+    # Lấy API key từ session_state
+    api_key = st.session_state.api_key
+
+    # Nếu key vẫn rỗng, dừng app và thông báo
     if not api_key:
-        st.error("API key không được để trống.")
+        st.info("Vui lòng nhập API key để tiếp tục.")
         st.stop()
 
-    st.session_state.setdefault("messages", [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}])
+    # Khởi tạo messages nếu chưa có
+    st.session_state.setdefault(
+        "messages", [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
+    )
     for m in st.session_state.messages:
         display_chat_message(m["role"], m["content"])
 
@@ -315,7 +326,9 @@ def main():
             try:
                 docs = vs.similarity_search(question, k=TOP_K)
                 out = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
-                answer = out.get("output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp.")
+                answer = out.get(
+                    "output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp."
+                )
                 sanitized = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
 
                 # Hiển thị từng cụm từ cho hiệu ứng chat
@@ -333,7 +346,9 @@ def main():
             except Exception as e:
                 placeholder.empty()
                 with placeholder:
-                    display_chat_message("assistant", f"Đã xảy ra lỗi: {str(e)}")
+                    display_chat_message(
+                        "assistant", f"Đã xảy ra lỗi: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
