@@ -38,7 +38,7 @@ def render_header():
     # Header bây giờ dùng logo sidebar cũ
     logo_path = APP_DIR / "Logo HCMUE - Gia tri cot loi 2.png"
     if logo_path.exists():
-        st.image(str(logo_path), width=120)
+        st.image(str(logo_path), width=480)  # tăng gấp 4 lần
     st.markdown(
         """
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -122,7 +122,7 @@ def render_sidebar_content():
     # Sidebar bây giờ dùng logo header cũ
     logo_path = APP_DIR / "Logo HCMUE.png"
     if logo_path.exists():
-        st.sidebar.image(str(logo_path), width=60)
+        st.sidebar.image(str(logo_path), width=180)  # tăng gấp 3 lần
     st.sidebar.markdown(
         """
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
