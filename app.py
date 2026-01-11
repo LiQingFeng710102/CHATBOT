@@ -36,17 +36,18 @@ TEMPERATURE = 0.2
 # =========================
 def render_header():
     logo_path = APP_DIR / "Logo HCMUE.png"  # logo chính
-    logo_html = f'<img src="file://{logo_path}" width="120">' if logo_path.exists() else ""
+    if logo_path.exists():
+        st.image(str(logo_path), width=120)  # hiển thị logo trước header
     st.markdown(
-        f"""
+        """
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-            .stApp {{ background-color: #f8f9fa; }}
+            html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+            .stApp { background-color: #f8f9fa; }
 
             /* Header */
-            .hcmue-header {{
+            .hcmue-header {
                 background-color: #ffffff;
                 color: #124874;
                 padding: 2rem;
@@ -54,31 +55,30 @@ def render_header():
                 text-align: center;
                 margin-bottom: 30px;
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            }}
-            .hcmue-header h1 {{ color: #124874; font-size: 42px; margin:0; }}
-            .hcmue-header p {{ color: #124874; opacity:0.8; font-size:18px; margin:5px 0 0 0; }}
+            }
+            .hcmue-header h1 { color: #124874; font-size: 42px; margin:0; }
+            .hcmue-header p { color: #124874; opacity:0.8; font-size:18px; margin:5px 0 0 0; }
             
             /* Chat bubbles */
-            .chat-msg-container {{ display: flex; width: 100%; margin-bottom: 1.5rem; }}
-            .justify-start {{ justify-content: flex-start; }}
-            .justify-end {{ justify-content: flex-end; }}
-            .msg-bubble {{ max-width: 100%; display: flex; flex-direction: column; }}
-            .items-start {{ align-items: flex-start; }}
-            .items-end {{ align-items: flex-end; }}
-            .msg-info {{ display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }}
-            .flex-row-reverse {{ flex-direction: row-reverse; }}
-            .avatar {{ width: 35px; height: 35px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; }}
-            .bot-avatar {{ background-color:#124874; color:white; }}
-            .user-avatar {{ background-color:#e2e8f0; color:#475569; }}
-            .role-label {{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; }}
-            .content-bubble {{ width:100%; padding:12px 20px; border-radius:18px; font-size:15px; line-height:1.6; box-shadow:0 1px 3px rgba(0,0,0,0.1); }}
-            .bot-content {{ background-color:white; color:#1e293b; border-top-left-radius:2px; }}
-            .user-content {{ background-color:#124874; color:white; border-top-right-radius:2px; }}
-            footer {{ display:none !important; }}
-            .stButton>button {{ background-color:#0d3658 !important; color:#fff !important; border-radius:999px; padding:6px 12px; border:none !important; }}
+            .chat-msg-container { display: flex; width: 100%; margin-bottom: 1.5rem; }
+            .justify-start { justify-content: flex-start; }
+            .justify-end { justify-content: flex-end; }
+            .msg-bubble { max-width: 100%; display: flex; flex-direction: column; }
+            .items-start { align-items: flex-start; }
+            .items-end { align-items: flex-end; }
+            .msg-info { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+            .flex-row-reverse { flex-direction: row-reverse; }
+            .avatar { width: 35px; height: 35px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; }
+            .bot-avatar { background-color:#124874; color:white; }
+            .user-avatar { background-color:#e2e8f0; color:#475569; }
+            .role-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; }
+            .content-bubble { width:100%; padding:12px 20px; border-radius:18px; font-size:15px; line-height:1.6; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+            .bot-content { background-color:white; color:#1e293b; border-top-left-radius:2px; }
+            .user-content { background-color:#124874; color:white; border-top-right-radius:2px; }
+            footer { display:none !important; }
+            .stButton>button { background-color:#0d3658 !important; color:#fff !important; border-radius:999px; padding:6px 12px; border:none !important; }
         </style>
         <div class="hcmue-header">
-            {logo_html}
             <h1>CHATBOT HCMUE</h1>
             <p>Tư vấn quy chế đào tạo cho sinh viên Trường Đại học Sư phạm TP.HCM</p>
         </div>
@@ -119,11 +119,11 @@ def display_chat_message(role, content, thinking=False):
 # =========================
 def render_sidebar_content():
     logo_path = APP_DIR / "Logo HCMUE - Gia tri cot loi 2.png"
-    logo_html = f'<img src="file://{logo_path}" width="60">' if logo_path.exists() else ""
+    if logo_path.exists():
+        st.sidebar.image(str(logo_path), width=60)  # hiển thị logo sidebar
     st.sidebar.markdown(
-        f"""
+        """
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
-            {logo_html}
             <div style="font-size:20px; font-weight:600; color:#124874;">CHATBOT HCMUE</div>
         </div>
         """,
