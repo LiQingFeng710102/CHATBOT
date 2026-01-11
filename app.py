@@ -268,15 +268,28 @@ def main():
             st.stop()  # dừng app tại đây nếu chưa nhập
 
     # Luôn lấy api_key từ session_state
-    api_key = st.session_state.api_key
+    api_key = st.session_state.api_key.strip()
+    if not api_key:
+        st.error("API key không được để trống.")
+        st.stop()
 
     st.session_state.setdefault("messages", [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}])
     for m in st.session_state.messages:
         display_chat_message(m["role"], m["content"])
 
-    # Khởi tạo Vector Store và Chain
-    vs = load_kb_vectorstore(api_key)
-    chain = load_qa_chain_cached(api_key)
+    # Khởi tạo Vector Store
+    try:
+        vs = load_kb_vectorstore(api_key)
+    except Exception as e:
+        st.error(f"Lỗi khi khởi tạo VectorStore: {str(e)}")
+        st.stop()
+
+    # Khởi tạo QA chain
+    try:
+        chain = load_qa_chain_cached(api_key)
+    except Exception as e:
+        st.error(f"Lỗi khi khởi tạo QA Chain: {str(e)}")
+        st.stop()
 
     # Nhận input từ User
     prompt = st.chat_input("Nhập câu hỏi của bạn tại đây...")
@@ -305,6 +318,7 @@ def main():
                 answer = out.get("output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp.")
                 sanitized = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
 
+                # Hiển thị từng cụm từ cho hiệu ứng chat
                 words = sanitized.split(" ")
                 full_display = ""
                 for i in range(len(words)):
