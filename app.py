@@ -158,7 +158,7 @@ def render_sidebar_content():
         ("Điều kiện để xét học bổng", "Điều kiện để xét học bổng ?"),
         ("Cách xin giấy tạm hoãn nghĩa vụ quân sự", "Cách xin giấy tạm hoãn nghĩa vụ quân sự ?"),
         ("Điều kiện để xét tốt nghiệp", "Điều kiện để xét tốt nghiệp ?"),
-        ("Điều kiện để bao lưu ?", "Điều kiện để bao lưu ?"),
+        ("Điều kiện để bảo lưu ?", "Điều kiện để bảo lưu ?"),
     ]
     for label, query in quick_questions:
         if st.sidebar.button(label, key=f"btn_{label}", use_container_width=True):
