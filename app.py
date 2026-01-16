@@ -253,13 +253,30 @@ def load_kb_vectorstore(api_key: str):
 
     return FAISS.from_documents(docs, embedding=embeddings)
 
+
 @st.cache_resource
 def load_qa_chain_cached(api_key: str):
     prompt_template = """
-Bạn là trợ lý hỗ trợ sinh viên.
-Trả lời đầy đủ, rõ ràng, đúng trọng tâm.
-Luôn trích dẫn NGỮ CẢNH.
-Nếu không có thông tin trong NGỮ CẢNH, hãy nói "Không tìm thấy thông tin phù hợp".
+Bạn là trợ lý hỗ trợ sinh viên Trường Đại học Sư phạm TP.HCM.
+
+YÊU CẦU BẮT BUỘC:
+- Chỉ trả lời dựa trên NGỮ CẢNH được cung cấp.
+- Không suy đoán, không bổ sung kiến thức bên ngoài.
+- Nếu không có thông tin phù hợp trong NGỮ CẢNH, hãy trả lời đúng câu:
+  "Không tìm thấy thông tin phù hợp."
+
+CÁCH TRÍCH DẪN NGUỒN (BẮT BUỘC):
+- Mỗi ý trả lời phải kèm trích dẫn ở cuối.
+- Trích dẫn theo đúng định dạng:
+
+(Trích từ Chương {chapter} – Điều {article}: {article_title})
+
+- Nếu NGỮ CẢNH có metadata:
+  - chapter
+  - article
+  - article_title
+→ PHẢI dùng đầy đủ các thông tin này.
+- Không dùng các cụm mơ hồ như "mục", "nội dung", "theo quy định chung".
 
 NGỮ CẢNH:
 {context}
@@ -267,12 +284,23 @@ NGỮ CẢNH:
 CÂU HỎI:
 {question}
 
-TRẢ LỜI:
+TRẢ LỜI (viết tiếng Việt, rõ ràng, mạch lạc):
 """.strip()
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=api_key,
-                                 temperature=TEMPERATURE, max_output_tokens=MAX_OUTPUT_TOKENS)
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+
+    llm = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        google_api_key=api_key,
+        temperature=TEMPERATURE,
+        max_output_tokens=MAX_OUTPUT_TOKENS
+    )
+
+    prompt = PromptTemplate(
+        template=prompt_template,
+        input_variables=["context", "question"]
+    )
+
     return load_qa_chain(llm=llm, chain_type="stuff", prompt=prompt)
+
 
 # =========================
 # MAIN
