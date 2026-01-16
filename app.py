@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 import streamlit as st
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
@@ -24,6 +25,8 @@ EMBED_MODEL = "models/gemini-embedding-001"
 MIN_SECONDS_BETWEEN_REQUESTS = 2
 MAX_REQUESTS_PER_DAY = 30
 
+CHUNK_SIZE = 1600
+CHUNK_OVERLAP = 200
 TOP_K = 4
 MAX_OUTPUT_TOKENS = 2048
 TEMPERATURE = 0.2
@@ -32,9 +35,10 @@ TEMPERATURE = 0.2
 # HEADER + LOGO
 # =========================
 def render_header():
+    # Header bây giờ dùng logo sidebar cũ
     logo_path = APP_DIR / "Logo HCMUE - Gia tri cot loi 2.png"
     if logo_path.exists():
-        st.image(str(logo_path), width=480)
+        st.image(str(logo_path), width=480)  # tăng gấp 4 lần
     st.markdown(
         """
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -42,6 +46,8 @@ def render_header():
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
             .stApp { background-color: #f8f9fa; }
+
+            /* Header */
             .hcmue-header {
                 background-color: #ffffff;
                 color: #124874;
@@ -53,6 +59,8 @@ def render_header():
             }
             .hcmue-header h1 { color: #124874; font-size: 42px; margin:0; }
             .hcmue-header p { color: #124874; opacity:0.8; font-size:18px; margin:5px 0 0 0; }
+
+            /* Chat bubbles */
             .chat-msg-container { display: flex; width: 100%; margin-bottom: 1.5rem; }
             .justify-start { justify-content: flex-start; }
             .justify-end { justify-content: flex-end; }
@@ -111,10 +119,20 @@ def display_chat_message(role, content, thinking=False):
 # SIDEBAR
 # =========================
 def render_sidebar_content():
+    # Sidebar bây giờ dùng logo header cũ
     logo_path = APP_DIR / "Logo HCMUE.png"
     if logo_path.exists():
-        st.sidebar.image(str(logo_path), width=180)
+        st.sidebar.image(str(logo_path), width=180)  # tăng gấp 3 lần
+    st.sidebar.markdown(
+        """
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
+            <div style="font-size:20px; font-weight:600; color:#124874;">CHATBOT HCMUE</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+    # --- API key ---
     st.sidebar.markdown('<p class="sidebar-section-title">Nhập API Key của bạn</p>', unsafe_allow_html=True)
     st.session_state.setdefault("api_key", "")
     api_key_input = st.sidebar.text_input("GOOGLE_API_KEY", type="password", value=st.session_state.api_key)
@@ -123,10 +141,37 @@ def render_sidebar_content():
     if not st.session_state.api_key:
         st.sidebar.warning("Vui lòng nhập API key để sử dụng chatbot.")
 
+    # --- Quick questions ---
+    st.sidebar.markdown('<p class="sidebar-section-title">Hỏi nhanh</p>', unsafe_allow_html=True)
+    quick_questions = [
+        ("Điều kiện để xét học bổng", "Điều kiện để xét học bổng ?"),
+        ("Cách xin giấy tạm hoãn nghĩa vụ quân sự", "Cách xin giấy tạm hoãn nghĩa vụ quân sự ?"),
+        ("Điều kiện để xét tốt nghiệp", "Điều kiện để xét tốt nghiệp ?"),
+        ("Điều kiện để bao lưu ?", "Điều kiện để bao lưu ?"),
+    ]
+    for label, query in quick_questions:
+        if st.sidebar.button(label, key=f"btn_{label}", use_container_width=True):
+            st.session_state.sidebar_selection = query
+            st.rerun()
+
     st.sidebar.divider()
     if st.sidebar.button("Làm mới cuộc hội thoại", use_container_width=True):
         st.session_state.messages = [{"role": "assistant", "content": "Tôi có thể hỗ trợ gì cho các bạn?"}]
         st.rerun()
+
+    st.sidebar.divider()
+    st.sidebar.markdown(
+        """
+        <div style="margin-top:20px;padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #f1f5f9;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+                <div style="width:8px;height:8px;background:#10b981;border-radius:50%;"></div>
+                <span style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;">Hệ thống Online</span>
+            </div>
+            <p style="font-size:13px;color:#94a3b8;margin:0;">Dữ liệu cập nhật dựa trên sổ tay sinh viên khóa 50.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =========================
 # CHỐNG SPAM
@@ -149,50 +194,26 @@ def allow_request():
     return True, ""
 
 # =========================
-# LOAD VECTORSTORE (KHÔNG CHIA CHUNK)
+# LOAD KB, VectorStore, QA Chain
 # =========================
-@st.cache_resource(show_spinner=True)
-def load_kb_vectorstore(api_key: str):
+@st.cache_data
+def load_kb_texts():
     if not KB_JSON_PATH.exists():
         raise FileNotFoundError(f"Không tìm thấy file: {KB_JSON_PATH}")
-
     with open(KB_JSON_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
+    return [item["content"] for item in data if "content" in item]
 
-    texts = []
-    metadatas = []
+@st.cache_resource(show_spinner=True)
+def load_kb_vectorstore(api_key: str):
+    texts = load_kb_texts()
+    splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+    chunks = []
+    for t in texts:
+        chunks.extend(splitter.split_text(t))
+    embeddings = GoogleGenerativeAIEmbeddings(model=EMBED_MODEL, google_api_key=api_key)
+    return FAISS.from_texts(chunks, embedding=embeddings)
 
-    for item in data:
-        content = item.get("content", "")
-        if not isinstance(content, str):
-            continue
-
-        content = content.strip()
-        if not content:
-            continue
-        if len(content) > 4000:
-            continue
-
-        texts.append(content)
-        metadatas.append(item.get("metadata", {}))
-
-    if not texts:
-        raise ValueError("Không có chunk hợp lệ để embed.")
-
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model=EMBED_MODEL,
-        google_api_key=api_key
-    )
-
-    return FAISS.from_texts(
-        texts=texts,
-        metadatas=metadatas,
-        embedding=embeddings
-    )
-
-# =========================
-# QA CHAIN
-# =========================
 @st.cache_resource
 def load_qa_chain_cached(api_key: str):
     prompt_template = """
@@ -209,13 +230,8 @@ CÂU HỎI:
 
 TRẢ LỜI:
 """.strip()
-
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=api_key,
-        temperature=TEMPERATURE,
-        max_output_tokens=MAX_OUTPUT_TOKENS
-    )
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=api_key,
+                                 temperature=TEMPERATURE, max_output_tokens=MAX_OUTPUT_TOKENS)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(llm=llm, chain_type="stuff", prompt=prompt)
 
@@ -238,7 +254,12 @@ def main():
     vs = load_kb_vectorstore(api_key)
     chain = load_qa_chain_cached(api_key)
 
-    question = st.chat_input("Nhập câu hỏi của bạn tại đây...")
+    prompt = st.chat_input("Nhập câu hỏi của bạn tại đây...")
+    if "sidebar_selection" in st.session_state and st.session_state.sidebar_selection:
+        question = st.session_state.sidebar_selection
+        del st.session_state.sidebar_selection
+    else:
+        question = prompt
 
     if question:
         ok, msg = allow_request()
@@ -258,13 +279,21 @@ def main():
                 answer = out.get("output_text", "Xin lỗi, tôi không tìm thấy thông tin phù hợp.")
                 sanitized = re.sub(r"```.*?```", "[mã đã ẩn]", answer, flags=re.S)
 
-                placeholder.empty()
-                display_chat_message("assistant", sanitized)
+                words = sanitized.split(" ")
+                full_display = ""
+                for i in range(len(words)):
+                    full_display += words[i] + " "
+                    if i % 3 == 0 or i == len(words) - 1:
+                        with placeholder:
+                            display_chat_message("assistant", full_display.strip())
+                        time.sleep(0.01)
+
                 st.session_state.messages.append({"role": "assistant", "content": sanitized})
 
             except Exception as e:
                 placeholder.empty()
-                display_chat_message("assistant", f"Đã xảy ra lỗi: {str(e)}")
+                with placeholder:
+                    display_chat_message("assistant", f"Đã xảy ra lỗi: {str(e)}")
 
 if __name__ == "__main__":
     main()
