@@ -272,6 +272,8 @@ CÁCH TRÍCH DẪN NGUỒN (BẮT BUỘC):
   - article
   - article_title
 → PHẢI dùng đầy đủ các thông tin này để trích dẫn.
+Nếu có đủ nguồn thì trích theo cấu trúc:
+(Trích từ Chương {chapter}, Điều {article} {article_title})
 
 - Không dùng các cụm mơ hồ như "mục", "nội dung", "theo quy định chung".
 
