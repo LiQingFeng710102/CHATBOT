@@ -11,6 +11,8 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.chains.question_answering import load_qa_chain
+from langchain.schema import Document
+
 
 # =========================
 # CẤU HÌNH
@@ -206,39 +208,50 @@ def allow_request():
 # LOAD KB, VectorStore, QA Chain
 # =========================
 @st.cache_data
-def load_kb_texts():
+def load_kb_documents():
     if not KB_JSON_PATH.exists():
         raise FileNotFoundError(f"Không tìm thấy file: {KB_JSON_PATH}")
+
     with open(KB_JSON_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return [item["content"] for item in data if "content" in item]
 
-def load_kb_vectorstore(api_key: str):
-    texts = load_kb_texts()
-
-    cleaned = []
-    for i, t in enumerate(texts):
-        if not isinstance(t, str):
+    docs = []
+    for i, item in enumerate(data):
+        content = item.get("content", "")
+        if not isinstance(content, str):
             print(f"❌ chunk {i} không phải string")
             continue
 
-        s = t.strip()
-        if len(s) < 10:
-            print(f"⚠️ chunk {i} quá ngắn ({len(s)})")
+        text = content.strip()
+        if len(text) < 10:
+            print(f"⚠️ chunk {i} quá ngắn ({len(text)})")
             continue
 
-        if len(s) > 8000:
-            print(f"⚠️ chunk {i} quá dài ({len(s)})")
+        if len(text) > 8000:
+            print(f"⚠️ chunk {i} quá dài ({len(text)})")
 
-        cleaned.append(s)
+        metadata = {k: v for k, v in item.items() if k != "content"}
 
-    print("Tổng chunk hợp lệ:", len(cleaned))
+        docs.append(
+            Document(
+                page_content=text,
+                metadata=metadata
+            )
+        )
+
+    print("Tổng Document hợp lệ:", len(docs))
+    return docs
+
+
+def load_kb_vectorstore(api_key: str):
+    docs = load_kb_documents()
 
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBED_MODEL,
         google_api_key=api_key
     )
-    return FAISS.from_texts(cleaned, embedding=embeddings)
+
+    return FAISS.from_documents(docs, embedding=embeddings)
 
 @st.cache_resource
 def load_qa_chain_cached(api_key: str):
