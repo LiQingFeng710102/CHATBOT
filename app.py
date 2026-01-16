@@ -206,13 +206,12 @@ def load_kb_texts():
 
 @st.cache_resource(show_spinner=True)
 def load_kb_vectorstore(api_key: str):
-    texts = load_kb_texts()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
-    chunks = []
-    for t in texts:
-        chunks.extend(splitter.split_text(t))
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBED_MODEL, google_api_key=api_key)
-    return FAISS.from_texts(chunks, embedding=embeddings)
+    texts = load_kb_texts()  # mỗi item đã là 1 chunk hoàn chỉnh
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model=EMBED_MODEL,
+        google_api_key=api_key
+    )
+    return FAISS.from_texts(texts, embedding=embeddings)
 
 @st.cache_resource
 def load_qa_chain_cached(api_key: str):
