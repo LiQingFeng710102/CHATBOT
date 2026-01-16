@@ -99,7 +99,8 @@ def display_chat_message(role, content, thinking=False):
     icon = '<i class="fas fa-robot"></i>' if is_bot else '<i class="fas fa-user-graduate"></i>'
     label = "Trợ lý HCMUE" if is_bot else "Sinh viên"
     bubble_class = "bot-content" if is_bot else "user-content"
-    inner_content = '<div style="font-size:18px; color:#94a3b8; font-style:italic;">...</div>' if thinking else content
+
+    # 1️⃣ Render KHUNG (HTML)
     html = f"""
     <div class="chat-msg-container {justify}">
         <div class="msg-bubble {items}">
@@ -108,12 +109,17 @@ def display_chat_message(role, content, thinking=False):
                 <span class="role-label">{label}</span>
             </div>
             <div class="content-bubble {bubble_class}">
-                {inner_content}
             </div>
         </div>
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
+
+    # 2️⃣ Render NỘI DUNG (Markdown thuần → LaTeX chạy)
+    if thinking:
+        st.markdown("_..._")
+    else:
+        st.markdown(content)
 
 # =========================
 # SIDEBAR
