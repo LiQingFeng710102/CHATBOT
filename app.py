@@ -267,15 +267,12 @@ YÊU CẦU BẮT BUỘC:
 
 CÁCH TRÍCH DẪN NGUỒN (BẮT BUỘC):
 - Mỗi ý trả lời phải kèm trích dẫn ở cuối.
-- Trích dẫn theo đúng định dạng:
-
-(Trích từ Chương {chapter} – Điều {article}: {article_title})
-
 - Nếu NGỮ CẢNH có metadata:
   - chapter
   - article
   - article_title
-→ PHẢI dùng đầy đủ các thông tin này.
+→ PHẢI dùng đầy đủ các thông tin này để trích dẫn.
+
 - Không dùng các cụm mơ hồ như "mục", "nội dung", "theo quy định chung".
 
 NGỮ CẢNH:
