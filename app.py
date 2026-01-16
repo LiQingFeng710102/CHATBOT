@@ -204,14 +204,32 @@ def load_kb_texts():
         data = json.load(f)
     return [item["content"] for item in data if "content" in item]
 
-@st.cache_resource(show_spinner=True)
 def load_kb_vectorstore(api_key: str):
-    texts = load_kb_texts()  # mỗi item đã là 1 chunk hoàn chỉnh
+    texts = load_kb_texts()
+
+    cleaned = []
+    for i, t in enumerate(texts):
+        if not isinstance(t, str):
+            print(f"❌ chunk {i} không phải string")
+            continue
+
+        s = t.strip()
+        if len(s) < 10:
+            print(f"⚠️ chunk {i} quá ngắn ({len(s)})")
+            continue
+
+        if len(s) > 8000:
+            print(f"⚠️ chunk {i} quá dài ({len(s)})")
+
+        cleaned.append(s)
+
+    print("Tổng chunk hợp lệ:", len(cleaned))
+
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBED_MODEL,
         google_api_key=api_key
     )
-    return FAISS.from_texts(texts, embedding=embeddings)
+    return FAISS.from_texts(cleaned, embedding=embeddings)
 
 @st.cache_resource
 def load_qa_chain_cached(api_key: str):
